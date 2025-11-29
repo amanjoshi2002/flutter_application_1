@@ -1,245 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'package:clipboard/clipboard.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
-import 'services/overlay_service.dart';
-import 'screens/analysis_result_screen.dart';
-import 'models/analysis_response.dart';
-
-@pragma("vm:entry-point")
-void overlayMain() {
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: OverlayWidget(),
-  ));
-}
+import 'dart:async';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'TruthCourt',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'TruthCourt'),
+      home: FrontPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  final OverlayService _overlayService = OverlayService();
-  bool _isOverlayActive = false;
-  AnalysisResponse? _latestAnalysis;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkOverlayPermission();
-    _listenToOverlayData();
-  }
-
-  Future<void> _checkOverlayPermission() async {
-    final hasPermission = await _overlayService.checkPermission();
-    setState(() {
-      _isOverlayActive = hasPermission && _overlayService.isOverlayActive;
-    });
-  }
-
-  void _listenToOverlayData() {
-    FlutterOverlayWindow.overlayListener.listen((data) {
-      if (data['action'] == 'analysis_complete') {
-        final resultMap = data['result'] as Map<String, dynamic>;
-        final analysis = AnalysisResponse.fromJson(resultMap);
-        setState(() {
-          _latestAnalysis = analysis;
-        });
-        
-        // Navigate to result screen
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AnalysisResultScreen(analysis: analysis),
-          ),
-        );
-      }
-    });
-  }
-
-  Future<void> _toggleOverlay() async {
-    if (_isOverlayActive) {
-      await _overlayService.hideOverlay();
-      setState(() {
-        _isOverlayActive = false;
-      });
-    } else {
-      await _overlayService.showOverlay();
-      setState(() {
-        _isOverlayActive = true;
-      });
-    }
-  }
-
+class FrontPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E21),
-      appBar: AppBar(
-        title: Text(widget.title),
-        backgroundColor: const Color(0xFF1D1E33),
-        elevation: 0,
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.security,
-                size: 100,
-                color: Colors.blue,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'TruthCourt',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Fact-check messages with AI-powered analysis',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.white70,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 48),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1D1E33),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.info_outline,
-                      color: Colors.blue,
-                      size: 40,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'How to use:',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildStep('1', 'Enable the hover ball below'),
-                    _buildStep('2', 'Copy any text message'),
-                    _buildStep('3', 'Tap the floating ball'),
-                    _buildStep('4', 'Wait for analysis (up to 2 min)'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: _toggleOverlay,
-                icon: Icon(_isOverlayActive ? Icons.visibility_off : Icons.visibility),
-                label: Text(
-                  _isOverlayActive ? 'Hide Hover Ball' : 'Show Hover Ball',
-                  style: const TextStyle(fontSize: 18),
-                ),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
-                  ),
-                  backgroundColor: _isOverlayActive ? Colors.orange : Colors.blue,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-              ),
-              if (_latestAnalysis != null) ...[
-                const SizedBox(height: 24),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            AnalysisResultScreen(analysis: _latestAnalysis!),
-                      ),
-                    );
-                  },
-                  child: const Text('View Latest Analysis'),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStep(String number, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
+      body: Stack(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Colors.blue,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                number,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+          Image.asset(
+            'assets/newsp.jpg',
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 15,
-              ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: DraggableArrow(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => NewsPage()),
+                );
+              },
             ),
           ),
         ],
@@ -248,77 +49,481 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class OverlayWidget extends StatefulWidget {
-  const OverlayWidget({Key? key}) : super(key: key);
+class DraggableArrow extends StatefulWidget {
+  final Function()? onPressed;
+
+  const DraggableArrow({Key? key, this.onPressed}) : super(key: key);
 
   @override
-  State<OverlayWidget> createState() => _OverlayWidgetState();
+  _DraggableArrowState createState() => _DraggableArrowState();
 }
 
-class _OverlayWidgetState extends State<OverlayWidget> {
-  bool _isLoading = false;
-  String? _statusMessage;
+class _DraggableArrowState extends State<DraggableArrow> {
+  double _position = 0;
 
-  Future<void> _handleTap() async {
-    // This will be implemented with clipboard reading
-    setState(() {
-      _isLoading = true;
-      _statusMessage = "Feature coming soon!";
-    });
-
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onVerticalDragUpdate: (details) {
         setState(() {
-          _isLoading = false;
-          _statusMessage = null;
+          _position += details.delta.dy;
         });
+      },
+      onVerticalDragEnd: (details) {
+        if (_position < -50) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => NewsPage()),
+          );
+        }
+        setState(() {
+          _position = 0;
+        });
+      },
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height / 4,
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade300,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.arrow_upward),
+              SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: widget.onPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: EdgeInsets.symmetric(vertical: 10, horizontal: 40),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: Text(
+                  'Go',
+                  style: TextStyle(fontSize: 20),
+                ),
+              ),
+              SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Image.asset('assets/logo.png'),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'fakecheckmate',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.blue,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class NewsPage extends StatefulWidget {
+  @override
+  _NewsPageState createState() => _NewsPageState();
+}
+
+class _NewsPageState extends State<NewsPage> {
+  String _currentIcon = 'search'; // Initial icon
+  static const String trueIcon = 'yes'; // True icon
+  static const String falseIcon = 'no'; // False icon
+  bool _bubbleShown = false;
+
+  Future<void> _startIconOverlay(BuildContext context) async {
+    print('Starting icon overlay with current icon: $_currentIcon');
+    if (_bubbleShown) {
+      await FlutterOverlayWindow.closeOverlay();
+    }
+
+    // Get clipboard data
+    ClipboardData? clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+    String userinput = clipboardData?.text ?? '';
+
+    // Make HTTP request to send clipboard text to backend
+    int response = await fetchDataFromAPI(userinput);
+
+    // Determine the icon based on the response
+    String icon = response == 1 ? trueIcon : falseIcon;
+    print('Showing overlay with icon: $icon');
+
+    // Show overlay window with result
+    await FlutterOverlayWindow.showOverlay(
+      height: 150,
+      width: 150,
+      alignment: OverlayAlignment.center,
+      enableDrag: true,
+    );
+    
+    _bubbleShown = true;
+  }
+
+  Future<int> fetchDataFromAPI(String userinput) async {
+  try {
+    print('Sending request to API...');
+    print('Input text: $userinput');
+    
+    // Make an HTTP request to your API endpoint with 5 minute timeout
+    final response = await http.post(
+      Uri.parse('https://backend.truthcourt.online/analyze'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8', // Set content type header
+      },
+      body: jsonEncode(<String, String>{
+        'userinput': userinput,
+      }),
+    ).timeout(
+      Duration(minutes: 5),
+      onTimeout: () {
+        print('Request timed out after 5 minutes');
+        throw TimeoutException('API request timed out');
+      },
+    );
+
+    print('API Response Status Code: ${response.statusCode}');
+    print('API Response Body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      // Parse the response and display results in console
+      final Map<String, dynamic> data = json.decode(response.body);
+      print('=== API Analysis Results ===');
+      print('Full Response: $data');
+      
+      // Extract verdict from the response
+      if (data.containsKey('verdict')) {
+        final verdict = data['verdict'].toString().toUpperCase();
+        print('Verdict: $verdict');
+        
+        // Extract summary and evidence if available
+        if (data.containsKey('summary')) {
+          print('Summary: ${data['summary']}');
+        }
+        if (data.containsKey('evidence')) {
+          print('Evidence: ${data['evidence']}');
+        }
+        if (data.containsKey('judge_statement')) {
+          print('Judge Statement: ${data['judge_statement']}');
+        }
+        
+        // Return 0 for SCAM (false), 1 for LEGIT (true)
+        if (verdict.contains('SCAM')) {
+          print('Result: SCAM - Showing FALSE icon');
+          return 0;
+        } else if (verdict.contains('LEGIT')) {
+          print('Result: LEGIT - Showing TRUE icon');
+          return 1;
+        }
       }
+      
+      // Check for old prediction format for backward compatibility
+      if (data.containsKey('prediction')) {
+        final prediction = data['prediction'];
+        print('Prediction: $prediction');
+        
+        if (prediction is num) {
+          return prediction.toInt();
+        } else if (prediction is String) {
+          return double.parse(prediction).toInt();
+        }
+      }
+      
+      return 1; // Default to 1 (true) if format is unclear
+    } else {
+      // Handle errors
+      print('Failed to load data from API: ${response.reasonPhrase}');
+      return 0; // Return 0 if there's an error
+    }
+  } catch (e) {
+    // Handle exceptions
+    print('Error fetching data from API: $e');
+    return 0; // Return 0 if there's an exception
+  }
+}
+
+
+  late String _clipboardData;
+  late Timer _timer;
+  bool isBubbleShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _getClipboardData();
+    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+      _getClipboardData();
     });
   }
 
   @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  Future<void> _getClipboardData() async {
+    ClipboardData? clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+    setState(() {
+      _clipboardData = clipboardData?.text ?? 'No clipboard data';
+    });
+  }
+
+  void _stopBubble() {
+    if (isBubbleShown) {
+      FlutterOverlayWindow.closeOverlay(); // Your logic to stop the bubble
+      setState(() {
+        isBubbleShown = false;
+      });
+    }
+  }
+
+/*
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/spectrathon/Team_PCCE
+git push -u origin main
+*/
+  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: GestureDetector(
-        onTap: _isLoading ? null : _handleTap,
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          alignment: Alignment.center,
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: _isLoading
-                    ? [Colors.orange, Colors.deepOrange]
-                    : [Colors.blue, Colors.lightBlue],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 10,
-                  spreadRadius: 2,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('News'),
+        actions: [
+          IconButton(
+            onPressed: () {
+              // Handle settings icon tap
+            },
+            icon: Icon(Icons.settings),
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: () async {
+                    await _startIconOverlay(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  child: Text(
+                    'Start',
+                    style: TextStyle(fontSize: 18, color: Colors.white),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: _stopBubble,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  child: Text(
+                    'Stop',
+                    style: TextStyle(fontSize: 18, color: Colors.white),
+                  ),
                 ),
               ],
             ),
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 3,
-                    ),
-                  )
-                : const Icon(
-                    Icons.copy,
-                    color: Colors.white,
-                    size: 35,
-                  ),
+            SizedBox(height: 20),
+            Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.black,
+              ),
+              child: Text(
+                _clipboardData,
+                style: TextStyle(fontSize: 18, color: Colors.white),
+              ),
+            ),
+            SizedBox(height: 20),
+            Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.black,
+              ),
+              child: Text(
+                '---',
+                style: TextStyle(fontSize: 18, color: Colors.white),
+              ),
+            ),
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CustomButton(
+                  name: 'Add Manual',
+                  color: Colors.black,
+                  icon: Icons.library_add,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => ManualEntryPage()),
+                    );
+                  },
+                ),
+                SizedBox(width: 10),
+                CustomButton(
+                  name: 'Report',
+                  color: Colors.black,
+                  icon: Icons.report,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => ReportPage()),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class CustomButton extends StatelessWidget {
+  final String name;
+  final Color color;
+  final IconData icon;
+  final Function()? onPressed;
+
+  CustomButton({
+    required this.name,
+    required this.color,
+    required this.icon,
+    this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.white,
+        padding: EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+        backgroundColor: color,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon),
+          SizedBox(width: 10),
+          Text(
+            name,
+            style: TextStyle(fontSize: 18),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class ManualEntryPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Manual Entry'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Result',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Enter your input',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                // Add your submit logic here
+              },
+              child: Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ReportPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Report Issue'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Enter your report here',
+              ),
+              maxLines: 5,
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                // Implement submit functionality here
+              },
+              child: Text('Submit'),
+            ),
+          ],
         ),
       ),
     );
